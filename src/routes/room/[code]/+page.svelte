@@ -117,6 +117,42 @@
     });
   }
 
+  // Live guesses feed, re-bound per session. postgres_changes must bind before
+  // subscribe(), so a session starting after mount needs a fresh channel.
+  let guessesChannel: ReturnType<typeof supabase.channel> | null = null;
+
+  function subscribeGuesses(sid: number) {
+    if (guessesChannel) {
+      supabase.removeChannel(guessesChannel);
+      guessesChannel = null;
+    }
+
+    const ch = supabase.channel(`session:${sid}:guesses`);
+    ch.on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'guesses',
+        filter: `session_id=eq.${sid}`
+      },
+      ({ new: row }) => {
+        guesses.push({
+          round: row.round_number,
+          attackerId: row.attacker_id,
+          defenderId: row.defender_id,
+          points: row.points
+        });
+      }
+    );
+    ch.subscribe();
+    guessesChannel = ch;
+  }
+
+  $effect(() => {
+    if (sessionId != null) subscribeGuesses(sessionId);
+  });
+
   // Whether the current user is one of the frozen-in participants.
   let isParticipant = $derived(roster.some((p) => p.playerId === data.playerId));
 
@@ -296,27 +332,6 @@
         if (attackEvents.length > 50) attackEvents = attackEvents.slice(-50);
       });
 
-    // Live leaderboard feed, bound to the session present at mount.
-    if (data.session?.id) {
-      channel.on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'guesses',
-          filter: `session_id=eq.${data.session.id}`
-        },
-        ({ new: row }) => {
-          guesses.push({
-            round: row.round_number,
-            attackerId: row.attacker_id,
-            defenderId: row.defender_id,
-            points: row.points
-          });
-        }
-      );
-    }
-
     channel.subscribe(async (status) => {
       if (status !== 'SUBSCRIBED') return;
 
@@ -335,6 +350,7 @@
       clearInterval(tick);
       channel.untrack();
       supabase.removeChannel(channel);
+      if (guessesChannel) supabase.removeChannel(guessesChannel);
       hud.current = null;
     };
   });
