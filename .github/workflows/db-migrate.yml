@@ -1,0 +1,36 @@
+name: Apply DB migrations
+
+# Runs Drizzle migrations against Supabase whenever a commit on `main`
+# changes anything under drizzle/ (the generated SQL + meta journal).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "drizzle/**"
+
+# Prevent overlapping migration runs from racing against the same database.
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
