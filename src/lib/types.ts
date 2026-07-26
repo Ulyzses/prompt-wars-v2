@@ -15,6 +15,8 @@ export type Player = {
   playerId: string;
   playerName: string;
   isHost: boolean;
+  // Lobby choice. Absent (e.g. from the frozen DB roster) means 'player'.
+  role?: 'player' | 'spectator';
 };
 
 export type Session = {

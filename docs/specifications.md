@@ -39,7 +39,9 @@ If multiple players are tied for the same placement, they will all get the same 
 
 ## Spectating
 
-Players who are join the room after the countdown has started will be considered spectators. Spectators can view the game in real-time as it progresses in the form of a leaderboard and a visual of attacks. Spectators cannot participate in the game and will not be able to see any of the players' defence prompts or special words.
+In the lobby, players will be able to set their status to either "Player" or "Spectator" (default is "Player"). Players who are join the room after the countdown has started will also be considered spectators.
+
+Spectators can view the game in real-time as it progresses in the form of a leaderboard and a visual of attacks. Spectators cannot participate in the game and will not be able to see any of the players' defence prompts or special words.
 
 The visual of attacks will be a representation of the attack prompts being sent to the AI agent. Each player will be a circle on the screen, arranged in a circular pattern. When a player sends an attack prompt or a guess, a bullet (a very small circle) will be fired from the player's circle towards their target opponent's circle. The bullet will travel in a straight line until it reaches the target opponent's circle, at which point it will disappear. If the player guesses correctly, a differently coloured bullet (which is slightly bigger than regular bullets) will shoot instead. The visual of attacks will be updated in real-time as players send attack prompts to the AI agent.
 

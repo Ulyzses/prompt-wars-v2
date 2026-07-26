@@ -27,6 +27,24 @@
   // Live presence — who is currently connected. Used only for the lobby.
   let players = $state<Player[]>([]);
 
+  // This user's lobby choice, re-tracked into presence on change.
+  let myRole = $state<'player' | 'spectator'>('player');
+
+  function setRole(role: 'player' | 'spectator') {
+    if (myRole === role) return;
+    myRole = role;
+    channel?.track({
+      playerId: data.playerId,
+      playerName: data.playerName,
+      isHost: data.isHost,
+      role: myRole
+    });
+  }
+
+  // Absent role defaults to 'player'.
+  let lobbyPlayers = $derived(players.filter((p) => p.role !== 'spectator'));
+  let lobbySpectators = $derived(players.filter((p) => p.role === 'spectator'));
+
   // Roster frozen at game start; seeded from server so it survives reconnects.
   // svelte-ignore state_referenced_locally
   let roster = $state<Player[]>(data.roster ?? []);
@@ -289,8 +307,8 @@
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState<Player>();
 
-        // One entry per player, collapse multiple tabs
-        players = Object.values(state).map((entries) => entries[0]);
+        // Last entry = most recent track (tabs/re-tracks stack up).
+        players = Object.values(state).map((entries) => entries[entries.length - 1]);
       })
       .on(
         'postgres_changes',
@@ -338,7 +356,8 @@
       await channel.track({
         playerId: data.playerId,
         playerName: data.playerName,
-        isHost: data.isHost
+        isHost: data.isHost,
+        role: myRole
       });
     });
 
@@ -419,37 +438,68 @@
             {/if}
           </section>
 
+          {#snippet lobbyRow(p: Player)}
+            <li class="player-row">
+              <span class="player-name">{displayName(p)}</span>
+              <span class="player-badges">
+                {#if p.isHost}
+                  <span class="badge host">Host</span>
+                {/if}
+                {#if p.playerId === data.playerId}
+                  <span class="badge you">You</span>
+                  <button
+                    type="button"
+                    class="role-switch"
+                    onclick={() => setRole(myRole === 'player' ? 'spectator' : 'player')}
+                    >{myRole === 'player' ? 'Spectate' : 'Play'}</button
+                  >
+                {/if}
+              </span>
+            </li>
+          {/snippet}
+
           <section class="lobby-section">
             <div class="section-head">
               <h2 class="section-title">Players</h2>
-              <span class="section-count">{players.length}</span>
+              <span class="section-count">{lobbyPlayers.length}</span>
             </div>
             <ul class="player-list">
-              {#each players as p (p.playerId)}
+              {#each lobbyPlayers as p (p.playerId)}
                 <input
                   type="hidden"
                   name="players"
                   value={JSON.stringify({ playerId: p.playerId, playerName: p.playerName })}
                 />
-                <li class="player-row">
-                  <span class="player-name">{displayName(p)}</span>
-                  <span class="player-badges">
-                    {#if p.isHost}
-                      <span class="badge host">Host</span>
-                    {/if}
-                    {#if p.playerId === data.playerId}
-                      <span class="badge you">You</span>
-                    {/if}
-                  </span>
-                </li>
+                {@render lobbyRow(p)}
               {/each}
+              {#if !lobbyPlayers.length}
+                <li class="empty-row">No players yet</li>
+              {/if}
+            </ul>
+          </section>
+
+          <section class="lobby-section">
+            <div class="section-head">
+              <h2 class="section-title">Spectators</h2>
+              <span class="section-count">{lobbySpectators.length}</span>
+            </div>
+            <ul class="player-list">
+              {#each lobbySpectators as p (p.playerId)}
+                {@render lobbyRow(p)}
+              {/each}
+              {#if !lobbySpectators.length}
+                <li class="empty-row">No spectators</li>
+              {/if}
             </ul>
           </section>
 
           <footer class="lobby-foot">
             {#if data.isHost}
-              <button class="lobby-btn primary" formaction="?/start" type="submit"
-                >Start Game</button
+              <button
+                class="lobby-btn primary"
+                formaction="?/start"
+                type="submit"
+                disabled={!lobbyPlayers.length}>Start Game</button
               >
             {:else}
               <p class="waiting">Waiting for the host to start…</p>
@@ -671,12 +721,32 @@
     opacity: 0.6;
   }
 
+  .role-switch {
+    margin-top: 0;
+    width: auto;
+    padding: 0.1rem 0.4rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    border-style: dashed;
+  }
+
   .player-list {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
     max-height: 260px;
     overflow-y: auto;
+  }
+
+  .empty-row {
+    padding: 0.4rem 0.6rem;
+    border: 2px dashed color-mix(in srgb, var(--color-black) 40%, var(--color-white));
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.75rem;
+    color: color-mix(in srgb, var(--color-black) 55%, var(--color-white));
   }
 
   .player-row {
