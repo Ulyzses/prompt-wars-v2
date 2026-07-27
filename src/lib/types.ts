@@ -37,3 +37,18 @@ export type Round = {
   startedAt: string;
   endingOn: string;
 };
+
+export type AttackKind = 'prompt' | 'guess';
+
+// One logged attack against a defender: a prompt with its guard reply, or a guess.
+export type HistoryEntry = {
+  id: number;
+  round: number;
+  attackerId: string;
+  defenderId: string;
+  kind: AttackKind;
+  text: string;
+  response: string | null;
+  correct: boolean | null;
+  createdAt: string;
+};

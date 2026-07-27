@@ -15,6 +15,7 @@
     stopTime,
     opponents,
     chatHistory,
+    crackedDefenders,
     appendMessage,
     broadcastAttack
   }: {
@@ -25,6 +26,7 @@
     stopTime: string;
     opponents: Player[];
     chatHistory: Record<string, ChatMessage[]>;
+    crackedDefenders: Set<string>;
     appendMessage: (defenderId: string, message: ChatMessage) => void;
     broadcastAttack: (defenderId: string, correct?: boolean) => void;
   } = $props();
@@ -48,6 +50,7 @@
       {now}
       {timeLeft}
       messages={chatHistory[player.playerId] ?? []}
+      cracked={crackedDefenders.has(player.playerId)}
       {appendMessage}
       {broadcastAttack}
     />

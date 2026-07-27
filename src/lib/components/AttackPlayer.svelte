@@ -17,6 +17,7 @@
     now,
     timeLeft,
     messages,
+    cracked,
     appendMessage,
     broadcastAttack
   }: {
@@ -28,6 +29,7 @@
     now: number;
     timeLeft: number;
     messages: ChatMessage[];
+    cracked: boolean;
     appendMessage: (defenderId: string, message: ChatMessage) => void;
     broadcastAttack: (defenderId: string, correct?: boolean) => void;
   } = $props();
@@ -42,9 +44,12 @@
 
   let chatMessage: string = $state('');
 
-  // Client-side guard: once guessed correctly, lock guessing for this opponent.
+  // Once guessed correctly, lock guessing for this opponent. `cracked` comes
+  // from the durable guess feed and so survives a refresh; the local flag
+  // covers the optimistic window before that row arrives.
   let guessFeedback: 'correct' | 'incorrect' | null = $state(null);
   let guessedCorrectly: boolean = $state(false);
+  const locked = $derived(cracked || guessedCorrectly);
 
   let log: HTMLDivElement | undefined = $state();
 
@@ -138,7 +143,7 @@
   }
 </script>
 
-<article class="atk-card" class:captured={guessedCorrectly}>
+<article class="atk-card" class:captured={locked}>
   <header class="atk-head">
     <h2 class="atk-name">{defenderName}</h2>
   </header>
@@ -205,13 +210,14 @@
         id="secret-{defenderId}"
         name="secret"
         placeholder="Guess the secret…"
-        disabled={guessedCorrectly}
+        disabled={locked}
         required
       />
-      <button type="submit" disabled={timeLeft <= 0 || guessedCorrectly}>Guess</button>
+      <button type="submit" disabled={timeLeft <= 0 || locked}>Guess</button>
     </div>
 
-    {#if guessFeedback === 'correct'}
+    <!-- A lock restored from the guess feed has no local feedback to show. -->
+    {#if guessFeedback === 'correct' || (locked && !guessFeedback)}
       <p class="feedback correct">Correct — you cracked {defenderName}'s secret.</p>
     {:else if guessFeedback === 'incorrect'}
       <p class="feedback incorrect">Not quite — keep attacking.</p>

@@ -1,9 +1,9 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { rooms, sessions, rounds, sessionPlayers, guesses } from '$lib/server/db/schema';
-import type { Player } from '$lib/types';
+import { rooms, sessions, rounds, sessionPlayers, guesses, attacks } from '$lib/server/db/schema';
+import type { AttackKind, HistoryEntry, Player } from '$lib/types';
 import { computeScores, type GuessRow } from '$lib/scoring';
-import { eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ params, locals }) => {
@@ -30,6 +30,10 @@ export const load: LayoutServerLoad = async ({ params, locals }) => {
 
   // This player's total score, including the defence bonus; seeds the top bar.
   let score = 0;
+
+  // Every logged attack this player is either side of: the incoming ones feed
+  // their history log, the outgoing ones rebuild their chat transcripts.
+  let history: HistoryEntry[] = [];
 
   if (session) {
     const roundRows = await db.query.rounds.findMany({
@@ -76,6 +80,26 @@ export const load: LayoutServerLoad = async ({ params, locals }) => {
       .map((r) => ({ roundNumber: r.roundNumber, endingOn: r.endingOn ?? new Date(0) }));
 
     score = computeScores(guessList, roster, attackRounds, Date.now())[locals.playerId] ?? 0;
+
+    const attackRows = await db.query.attacks.findMany({
+      where: and(
+        eq(attacks.sessionId, session.id),
+        or(eq(attacks.defenderId, locals.playerId), eq(attacks.attackerId, locals.playerId))
+      ),
+      orderBy: (attacks, { asc }) => [asc(attacks.createdAt), asc(attacks.id)]
+    });
+
+    history = attackRows.map((a) => ({
+      id: a.id,
+      round: a.roundNumber,
+      attackerId: a.attackerId,
+      defenderId: a.defenderId,
+      kind: a.kind as AttackKind,
+      text: a.text,
+      response: a.response,
+      correct: a.correct,
+      createdAt: a.createdAt.toISOString()
+    }));
   }
 
   return {
@@ -95,6 +119,7 @@ export const load: LayoutServerLoad = async ({ params, locals }) => {
     roster,
     score,
     guesses: guessList,
+    history,
     isHost: room.hostId === locals.playerId
   };
 };

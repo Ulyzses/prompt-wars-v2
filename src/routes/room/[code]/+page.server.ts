@@ -8,7 +8,8 @@ import {
   defPrompts,
   secrets,
   sessionPlayers,
-  guesses
+  guesses,
+  attacks
 } from '$lib/server/db/schema';
 import { and, eq, sql } from 'drizzle-orm';
 import { all } from '@wordlist/english-eff/all';
@@ -258,6 +259,17 @@ export const actions = {
 
     // Case-insensitive, trimmed comparison
     const correct = guess.toLowerCase() === secret.secret.toLowerCase();
+
+    // Every guess reaches the defender's history log, correct or not
+    await db.insert(attacks).values({
+      sessionId,
+      roundNumber,
+      attackerId,
+      defenderId,
+      kind: 'guess',
+      text: guess,
+      correct
+    });
 
     // Incorrect guesses are not penalised
     if (!correct) {

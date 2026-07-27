@@ -1,5 +1,6 @@
 import { openai, model } from '$lib/openai';
 import { db } from '$lib/server/db';
+import { attacks } from '$lib/server/db/schema';
 import { error, isHttpError } from '@sveltejs/kit';
 import { MAX_PROMPT_LENGTH } from '$lib/constants';
 
@@ -9,7 +10,7 @@ export const POST: RequestHandler = async ({ request }) => {
   try {
     const data = await request.json();
 
-    // const attackerId = data.attackerId as string;
+    const attackerId = data.attackerId as string;
     const defenderId = data.defenderId as string;
     const sessionId = Number(data.sessionId);
     const roundNumber = Number(data.roundNumber);
@@ -22,6 +23,24 @@ export const POST: RequestHandler = async ({ request }) => {
 
     if (atkPrompt.length > MAX_PROMPT_LENGTH) {
       throw error(400, `atkPrompt cannot exceed ${MAX_PROMPT_LENGTH} characters`);
+    }
+
+    // Checked because every exchange is now logged and shown to the defender
+    if (!attackerId || !defenderId) {
+      throw error(400, 'attackerId and defenderId are required');
+    }
+
+    if (attackerId === defenderId) {
+      throw error(400, 'Cannot attack your own guard');
+    }
+
+    const attacker = await db.query.sessionPlayers.findFirst({
+      where: (sessionPlayers, { and, eq }) =>
+        and(eq(sessionPlayers.sessionId, sessionId), eq(sessionPlayers.playerId, attackerId))
+    });
+
+    if (!attacker) {
+      throw error(403, 'Attacker is not a participant in this session');
     }
 
     // Get the secret from the database
@@ -61,18 +80,31 @@ export const POST: RequestHandler = async ({ request }) => {
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
+        let reply = '';
 
         try {
           for await (const event of responseStream) {
             if (event.type === 'response.output_text.delta') {
               const textChunk = event.delta;
+              reply += textChunk;
               controller.enqueue(encoder.encode(textChunk));
             }
           }
+          controller.close();
         } catch (err) {
           controller.error(err);
         } finally {
-          controller.close();
+          // Logged once the reply is whole so the defender's history gets a
+          // complete exchange; a failed stream still records the attempt.
+          await db.insert(attacks).values({
+            sessionId,
+            roundNumber,
+            attackerId,
+            defenderId,
+            kind: 'prompt',
+            text: atkPrompt,
+            response: reply || null
+          });
         }
       }
     });

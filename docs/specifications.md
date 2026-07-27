@@ -46,3 +46,9 @@ Spectators can view the game in real-time as it progresses in the form of a lead
 The visual of attacks will be a representation of the attack prompts being sent to the AI agent. Each player will be a circle on the screen, arranged in a circular pattern. When a player sends an attack prompt or a guess, a bullet (a very small circle) will be fired from the player's circle towards their target opponent's circle. The bullet will travel in a straight line until it reaches the target opponent's circle, at which point it will disappear. If the player guesses correctly, a differently coloured bullet (which is slightly bigger than regular bullets) will shoot instead. The visual of attacks will be updated in real-time as players send attack prompts to the AI agent.
 
 This visual takes up the left half of the screen, while the leaderboard takes up the right half of the screen. The leaderboard will show the player names and their scores, with the top players highlighted based on their placement. The leaderboard will also be updated in real-time as players score points by correctly guessing their opponent's special word.
+
+## History Log
+
+During the game, a history log will be maintained to keep track of all attack prompts and guesses made by players.
+
+Players will be able to view the history log in real-time at the right side of the screen. Specifically, the history log will be a list of all attack prompts and guesses made by their opponents to them, and the responses from their AI guards. The history log will be updated in real-time as players send attack prompts and guesses to the AI agent.

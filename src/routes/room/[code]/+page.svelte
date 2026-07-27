@@ -3,13 +3,14 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import type { PageData } from './$types';
-  import { GameState, type Player } from '$lib/types';
+  import { GameState, type HistoryEntry, type Player } from '$lib/types';
   import { computeScores, roundPoints, type GuessRow } from '$lib/scoring';
   import { hud } from '$lib/stores/hud.svelte';
   import { displayName } from '$lib/utils';
   import CountdownScreen from '$lib/components/CountdownScreen.svelte';
   import DefenceScreen from '$lib/components/DefenceScreen.svelte';
   import AttackScreen from '$lib/components/AttackScreen.svelte';
+  import HistoryLog from '$lib/components/HistoryLog.svelte';
   import SpectatorScreen from '$lib/components/SpectatorScreen.svelte';
   import GameEndScreen from '$lib/components/GameEndScreen.svelte';
 
@@ -105,11 +106,40 @@
   type ChatMessage =
     | { role: 'user' | 'system'; text: string; round: number }
     | { role: 'round'; round: number };
-  let chatHistory = $state<Record<string, ChatMessage[]>>({});
+
+  // Rebuild this player's transcripts from the durable log, dividers interleaved
+  // at each round change. A pure initialiser rather than a derive, so the
+  // invalidateAll() on a correct guess can't clobber optimistic local appends.
+  function buildChatHistory(entries: HistoryEntry[]): Record<string, ChatMessage[]> {
+    const out: Record<string, ChatMessage[]> = {};
+
+    for (const e of entries) {
+      if (e.attackerId !== data.playerId || e.kind !== 'prompt') continue;
+
+      const messages = (out[e.defenderId] ??= []);
+      if (!messages.some((m) => m.role === 'round' && m.round === e.round)) {
+        messages.push({ role: 'round', round: e.round });
+      }
+      messages.push({ role: 'user', text: e.text, round: e.round });
+      if (e.response) messages.push({ role: 'system', text: e.response, round: e.round });
+    }
+
+    return out;
+  }
+
+  // svelte-ignore state_referenced_locally
+  let chatHistory = $state<Record<string, ChatMessage[]>>(buildChatHistory(data.history ?? []));
 
   function appendMessage(defenderId: string, message: ChatMessage) {
     chatHistory[defenderId] = [...(chatHistory[defenderId] ?? []), message];
   }
+
+  // Attacks aimed at this player, feeding their history log. Own sends are
+  // optimistic in `chatHistory`, so only the incoming side needs a live feed.
+  // svelte-ignore state_referenced_locally
+  let incoming = $state<HistoryEntry[]>(
+    (data.history ?? []).filter((h) => h.defenderId === data.playerId)
+  );
 
   // A fresh session wipes the transcripts from the previous game.
   // svelte-ignore state_referenced_locally
@@ -119,6 +149,7 @@
       lastChatSession = sessionId;
       chatHistory = {};
       guesses = [];
+      incoming = [];
       attackOrderCache = {};
     }
   });
@@ -169,6 +200,50 @@
 
   $effect(() => {
     if (sessionId != null) subscribeGuesses(sessionId);
+  });
+
+  // Live history feed, re-bound per session for the same binding-order reason.
+  let historyChannel: ReturnType<typeof supabase.channel> | null = null;
+
+  function subscribeHistory(sid: number) {
+    if (historyChannel) {
+      supabase.removeChannel(historyChannel);
+      historyChannel = null;
+    }
+
+    const ch = supabase.channel(`session:${sid}:attacks`);
+    ch.on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'attacks',
+        filter: `session_id=eq.${sid}`
+      },
+      ({ new: row }) => {
+        // Only attacks aimed at this player; the rest are none of their business.
+        if (row.defender_id !== data.playerId) return;
+        if (incoming.some((h) => h.id === row.id)) return;
+
+        incoming.push({
+          id: row.id,
+          round: row.round_number,
+          attackerId: row.attacker_id,
+          defenderId: row.defender_id,
+          kind: row.kind,
+          text: row.text,
+          response: row.response,
+          correct: row.correct,
+          createdAt: row.created_at
+        });
+      }
+    );
+    ch.subscribe();
+    historyChannel = ch;
+  }
+
+  $effect(() => {
+    if (sessionId != null) subscribeHistory(sessionId);
   });
 
   // Whether the current user is one of the frozen-in participants.
@@ -287,8 +362,21 @@
       : []
   );
 
+  // Opponents this player has already cracked in the live round. Derived from
+  // the durable guess feed, so the lock survives a refresh.
+  let crackedDefenders = $derived(
+    new Set(
+      guesses
+        .filter((g) => g.round === currentRound?.roundNumber && g.attackerId === data.playerId)
+        .map((g) => g.defenderId)
+    )
+  );
+
   // Client-only: "Back to Lobby" drops to WAITING without touching shared state.
   let backToLobby = $state(false);
+
+  // Narrow screens can't fit the history rail beside the grid; it drawers in.
+  let railOpen = $state(false);
 
   // Defence Prompt
 
@@ -370,6 +458,7 @@
       channel.untrack();
       supabase.removeChannel(channel);
       if (guessesChannel) supabase.removeChannel(guessesChannel);
+      if (historyChannel) supabase.removeChannel(historyChannel);
       hud.current = null;
     };
   });
@@ -510,31 +599,42 @@
     </div>
   {:else if gameState === GameState.COUNTDOWN}
     <CountdownScreen {now} startTime={rounds[0].startedAt} />
-  {:else if gameState === GameState.DEFENCE}
+  {:else if gameState === GameState.DEFENCE || gameState === GameState.ATTACK}
     {#if isParticipant}
-      <DefenceScreen
-        bind:prompt={defPrompt}
-        playerId={data.playerId}
-        sessionId={sessionId!}
-        {now}
-        stopTime={currentRound!.endingOn}
-      />
-    {:else}
-      <SpectatorScreen phase={gameState} roster={displayPlayers} {scores} {attackEvents} />
-    {/if}
-  {:else if gameState === GameState.ATTACK}
-    {#if isParticipant}
-      <AttackScreen
-        playerId={data.playerId}
-        sessionId={sessionId!}
-        roundNumber={currentRound!.roundNumber}
-        {now}
-        stopTime={currentRound!.endingOn}
-        opponents={orderedOpponents}
-        {chatHistory}
-        {appendMessage}
-        {broadcastAttack}
-      />
+      <div class="game-shell">
+        <div class="game-main">
+          {#if gameState === GameState.DEFENCE}
+            <DefenceScreen
+              bind:prompt={defPrompt}
+              playerId={data.playerId}
+              sessionId={sessionId!}
+              {now}
+              stopTime={currentRound!.endingOn}
+            />
+          {:else}
+            <AttackScreen
+              playerId={data.playerId}
+              sessionId={sessionId!}
+              roundNumber={currentRound!.roundNumber}
+              {now}
+              stopTime={currentRound!.endingOn}
+              opponents={orderedOpponents}
+              {chatHistory}
+              {crackedDefenders}
+              {appendMessage}
+              {broadcastAttack}
+            />
+          {/if}
+        </div>
+
+        <aside class="game-rail" class:open={railOpen}>
+          <HistoryLog entries={incoming} roster={displayPlayers} />
+        </aside>
+
+        <button class="rail-toggle" type="button" onclick={() => (railOpen = !railOpen)}>
+          {railOpen ? 'Close' : 'History'}
+        </button>
+      </div>
     {:else}
       <SpectatorScreen phase={gameState} roster={displayPlayers} {scores} {attackEvents} />
     {/if}
@@ -569,6 +669,72 @@
     border: 2px solid var(--color-black);
     background-color: var(--color-white);
     color: var(--color-black);
+  }
+
+  /* Game shell — playfield with the history rail alongside it */
+  .game-shell {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    /* Clips the parked off-canvas rail below the breakpoint. */
+    overflow: hidden;
+  }
+
+  .game-main {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .game-rail {
+    min-width: 0;
+    min-height: 0;
+    border-left: 2px solid var(--color-black);
+  }
+
+  /* Off-canvas above this width; the toggle only exists below it. */
+  .rail-toggle {
+    display: none;
+  }
+
+  @media (max-width: 900px) {
+    .game-shell {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .game-rail {
+      position: absolute;
+      inset: 0 0 0 auto;
+      width: min(340px, 88%);
+      background: var(--color-white);
+      transform: translateX(100%);
+      transition: transform 0.2s;
+      z-index: 2;
+    }
+
+    .game-rail.open {
+      transform: translateX(0);
+    }
+
+    .rail-toggle {
+      display: block;
+      position: absolute;
+      right: 0.75rem;
+      bottom: 0.75rem;
+      width: auto;
+      margin-top: 0;
+      padding: 0.4rem 0.8rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 700;
+      background: var(--color-black);
+      color: var(--color-white);
+      z-index: 3;
+    }
   }
 
   /* Lobby */

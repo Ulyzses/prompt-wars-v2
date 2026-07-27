@@ -1,4 +1,13 @@
-import { boolean, integer, pgTable, serial, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  index,
+  integer,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  unique
+} from 'drizzle-orm/pg-core';
 
 export const rooms = pgTable('rooms', {
   id: serial('id').primaryKey(),
@@ -112,4 +121,25 @@ export const guesses = pgTable(
       table.defenderId
     )
   ]
+);
+
+// Append-only log of every attack prompt and guess, plus the guard's reply.
+// Distinct from `guesses`, which is deduped and exists only for scoring.
+export const attacks = pgTable(
+  'attacks',
+  {
+    id: serial('id').primaryKey(),
+    sessionId: integer('session_id')
+      .notNull()
+      .references(() => sessions.id),
+    roundNumber: integer('round_number').notNull(),
+    attackerId: text('attacker_id').notNull(),
+    defenderId: text('defender_id').notNull(),
+    kind: text('kind').notNull(), // 'prompt' | 'guess'
+    text: text('text').notNull(), // the attack prompt, or the submitted guess
+    response: text('response'), // guard reply; prompts only
+    correct: boolean('correct'), // guesses only
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+  },
+  (table) => [index('attacks_session_created_idx').on(table.sessionId, table.createdAt)]
 );
