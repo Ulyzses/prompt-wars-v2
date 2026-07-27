@@ -88,6 +88,11 @@
 
     const atkPrompt = chatMessage;
 
+    // Shown up front rather than after the round-trip.
+    appendMessage(defenderId, { role: 'user', text: atkPrompt, round: roundNumber });
+    chatMessage = '';
+    queueMicrotask(scrollToBottom);
+
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
@@ -102,11 +107,6 @@
           atkPrompt
         })
       });
-
-      // Record the user's message and clear the composer.
-      appendMessage(defenderId, { role: 'user', text: atkPrompt, round: roundNumber });
-      chatMessage = '';
-      queueMicrotask(scrollToBottom);
 
       if (!response.ok || !response.body) {
         throw new Error(`Streaming failed with status ${response.status}`);
@@ -160,9 +160,14 @@
         <span class="msg-who">Guard</span>
         <span class="msg-text">{responseText}</span>
       </div>
+    {:else if isLoading}
+      <div class="msg system pending">
+        <span class="msg-who">Guard</span>
+        <span class="msg-text">Thinking…</span>
+      </div>
     {/if}
 
-    {#if !messages.some((m) => m.role !== 'round') && !responseText}
+    {#if !messages.some((m) => m.role !== 'round') && !responseText && !isLoading}
       <p class="atk-empty">Open with a message to probe {defenderName}'s guard.</p>
     {/if}
   </div>
@@ -319,6 +324,11 @@
     background: color-mix(in srgb, var(--color-primary) 14%, var(--color-white));
     border-color: var(--color-primary);
     color: var(--color-black);
+  }
+
+  .msg.pending .msg-text {
+    opacity: 0.6;
+    font-style: italic;
   }
 
   .msg-who {
