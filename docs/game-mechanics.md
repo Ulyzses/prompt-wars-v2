@@ -6,6 +6,8 @@
 - **Room**: A virtual space where players can join to play the game together, associated with a unique room code.
 - **Room Code**: A unique 6-character alphanumeric code that identifies a room and allows players to join it.
 - **Host**: The player who creates the room and has the ability to modify its settings and start the game.
+- **Spectator**: A player who joins a room but does not participate in the game.
+- **Guard**: An AI agent that has knowledge of the special words and responds to players' prompts during the attack phase.
 - **Session**: A single instance of the game that takes place in a room, consisting of multiple rounds.
 - **Round**: A single turn in the game consisting of both a defence phase and an attack phase.
 - **Defence phase**: The phase of the round where all players create prompts to protect their special word from being guessed by their opponent.
