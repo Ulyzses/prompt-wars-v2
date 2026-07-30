@@ -14,7 +14,7 @@
     phase={hud.current?.phase ?? null}
     round={hud.current?.round}
     timeLeft={hud.current?.timeLeft}
-    score={data.score}
+    score={hud.score ?? data.score}
     playerName={nameOrId(data.playerName, data.playerId)}
     roomName={data.room.roomName}
     roomCode={data.room.code}

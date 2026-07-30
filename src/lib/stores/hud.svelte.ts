@@ -5,5 +5,9 @@ export type HudInfo = {
 };
 
 // Written by the room page, read by the layout's top bar for live phase/round/timer.
-// Player/room/score come straight from load data instead.
-export const hud = $state<{ current: HudInfo | null }>({ current: null });
+// Player/room come straight from load data instead. `score` is live because the
+// load-data score only refreshes on invalidateAll(), which a defender never fires.
+export const hud = $state<{ current: HudInfo | null; score: number | null }>({
+  current: null,
+  score: null
+});

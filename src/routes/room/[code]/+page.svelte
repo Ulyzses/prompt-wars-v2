@@ -315,6 +315,10 @@
     }
   });
 
+  $effect(() => {
+    hud.score = isParticipant ? (scores[data.playerId] ?? 0) : null;
+  });
+
   // Attack-phase opponent ordering, frozen per round (specifications.md#attack-phase-player-ordering).
   // Cached by round number so live guesses and the random tie-break don't reshuffle mid-phase.
   let attackOrderCache = $state<Record<number, Player[]>>({});
@@ -460,6 +464,7 @@
       if (guessesChannel) supabase.removeChannel(guessesChannel);
       if (historyChannel) supabase.removeChannel(historyChannel);
       hud.current = null;
+      hud.score = null;
     };
   });
 </script>

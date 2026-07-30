@@ -9,6 +9,7 @@ export type GuessRow = {
 };
 
 export const DEFENCE_BONUS = 5;
+export const CRACK_PENALTY = 1;
 
 // Points for a correct guess, keyed on how many attackers already cracked this
 // defender this round (rank0) and the player count (game-mechanics.md#scoring).
@@ -30,8 +31,9 @@ export function pointsForRank(rank0: number, playerCount: number): number {
 }
 
 // Points earned by each player in a single round: guess points to the attackers,
-// plus a defence bonus to any roster member whose secret went un-guessed. The
-// defence bonus only lands once the round's attack phase has ended.
+// a CRACK_PENALTY to each defender per opponent that cracked them, plus a defence
+// bonus to any roster member whose secret went un-guessed. Only the defence bonus
+// waits for the round's attack phase to have ended.
 export function roundPoints(
   round: number,
   guesses: GuessRow[],
@@ -44,6 +46,7 @@ export function roundPoints(
   for (const g of guesses) {
     if (g.round !== round) continue;
     points[g.attackerId] = (points[g.attackerId] ?? 0) + g.points;
+    points[g.defenderId] = (points[g.defenderId] ?? 0) - CRACK_PENALTY;
     crackedDefenders.add(g.defenderId);
   }
 
