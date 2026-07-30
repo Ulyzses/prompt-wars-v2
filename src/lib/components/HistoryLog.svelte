@@ -47,7 +47,7 @@
           <span class="msg-text">{entry.text}</span>
         </div>
         <div class="msg guard" class:empty={!entry.response}>
-          <span class="msg-who">Your Guard</span>
+          <span class="msg-who">Your Oracle</span>
           <span class="msg-text">{entry.response ?? 'No reply'}</span>
         </div>
       {/if}

@@ -154,7 +154,7 @@
         <div class="round-divider">Round {message.round}</div>
       {:else}
         <div class="msg {message.role}">
-          <span class="msg-who">{message.role === 'system' ? 'Guard' : 'You'}</span>
+          <span class="msg-who">{message.role === 'system' ? 'Oracle' : 'You'}</span>
           <span class="msg-text">{message.text}</span>
         </div>
       {/if}
@@ -162,18 +162,18 @@
 
     {#if responseText}
       <div class="msg system">
-        <span class="msg-who">Guard</span>
+        <span class="msg-who">Oracle</span>
         <span class="msg-text">{responseText}</span>
       </div>
     {:else if isLoading}
       <div class="msg system pending">
-        <span class="msg-who">Guard</span>
+        <span class="msg-who">Oracle</span>
         <span class="msg-text">Thinking…</span>
       </div>
     {/if}
 
     {#if !messages.some((m) => m.role !== 'round') && !responseText && !isLoading}
-      <p class="atk-empty">Open with a message to probe {defenderName}'s guard.</p>
+      <p class="atk-empty">Open with a message to probe {defenderName}'s oracle.</p>
     {/if}
   </div>
 
@@ -183,7 +183,7 @@
       name="atkPrompt"
       rows="2"
       maxlength={MAX_PROMPT_LENGTH}
-      placeholder="Talk with {defenderName}'s guard"
+      placeholder="Talk with {defenderName}'s oracle"
       bind:value={chatMessage}
       disabled={timeLeft <= 0}
       required></textarea>
@@ -209,7 +209,7 @@
       <input
         id="secret-{defenderId}"
         name="secret"
-        placeholder="Guess the secret…"
+        placeholder="Guess the sigil…"
         disabled={locked}
         required
       />
@@ -218,7 +218,7 @@
 
     <!-- A lock restored from the guess feed has no local feedback to show. -->
     {#if guessFeedback === 'correct' || (locked && !guessFeedback)}
-      <p class="feedback correct">Correct — you cracked {defenderName}'s secret.</p>
+      <p class="feedback correct">Correct — you cracked {defenderName}'s sigil.</p>
     {:else if guessFeedback === 'incorrect'}
       <p class="feedback incorrect">Not quite — keep attacking.</p>
     {/if}

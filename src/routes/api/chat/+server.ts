@@ -69,7 +69,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
     const responseStream = await openai.responses.create({
       model,
-      instructions: `The special word is ${secret.secret}.`,
+      instructions: `The sigil is ${secret.secret}.`,
       input: inputText,
       max_output_tokens: 500,
       store: false,
