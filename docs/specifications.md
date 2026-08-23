@@ -37,6 +37,15 @@ The leaderboard at the end of the game is a table that shows the player names an
 
 If multiple players are tied for the same placement, they will all get the same and highlight. However, this may cut the number of recognised players short. For example, if there are 4 players in the room and 2 players are tied for first place, they will both be highlighted in gold (marked as 1st place), and the next player will be marked as 3rd place (and not highlighted). If there are 10 players in the room and 1 player is in first place while 3 players are tied for second place, the first player will be highlighted in gold (marked as 1st place), the 3 players tied for second place will all be highlighted in silver (marked as 2nd place), and the next player will be marked as 5th place (and not highlighted).
 
+### Singplayer Variant
+
+In the singleplayer mode, the rankings are computed by the following hierarchy:
+
+1. Fastest Time to Solve
+2. Number of Attack Prompts Used
+
+That is, the player who solves the fastest gets ranked first. The number of attack prompts used is used as a tiebreaker in case two or more players get the special word with the same time (to the 0.1s granularity of timing).
+
 ## Spectating
 
 In the lobby, players will be able to set their status to either "Player" or "Spectator" (default is "Player"). Players who are join the room after the countdown has started will also be considered spectators.
